@@ -39,7 +39,7 @@ fn main() -> Result<()> {
             if let Receive::Read(length) = receive {
                 let pulses: &[(Pulse, Pulse)] = &pulses[..length];
                 let mut byte_data: Vec<u8> = Vec::new();
-                for (lenght, (p1, p2)) in pulses.iter().enumerate() {
+                for (_lenght, (p1, p2)) in pulses.iter().enumerate() {
                     // println!("lenght: {lenght}| p1: {p1:?}| p2: {p2:?}");
                     if p1.pin_state == PinState::Low
                         && p2.pin_state == PinState::High
@@ -64,122 +64,19 @@ fn main() -> Result<()> {
                         // println!("S");
                     }
                 }
-                let byte_data = bits_to_bytes(&byte_data);
-                // 打印转换后的字节数组，使用16进制格式
-                println!("Received: {byte_data:?}");
-                for byte in &byte_data {
-                    print!("{:02X}", byte); // 以16进制格式打印，没有换行符
+                let byte_data: Vec<u8> = bits_to_bytes(&byte_data);
+                if byte_data.len() == 0 {
+                    break;
                 }
-                if byte_data[2] == 0x7B && byte_data[4] == 0xE0 {
-                    println!("关机")
-                } else if byte_data[2] == 0x6b && byte_data[4] == 0xE0 {
-                    println!("左右扫风");
-                } else if byte_data[0] == 0xb5 && byte_data[2] == 0xf5 {
-                    println!("其他");
-                } else {
-                    //风速
-                    let wind = (byte_data[2] >> 5) & 0x7;
-                    //模式
-                    let mode = (byte_data[4] >> 2) & 0x3;
-                    // 温度
-                    println!("温度原始数据{} ", byte_data[4]);
-                    let temp = (byte_data[4] >> 4) & 0xf;
-                    println!("温度：{temp} ");
-                    //温度
-                    match Speed::as_u8(wind) {
-                        Speed::Auto => {
-                            print!("自动,");
-                        }
-                        Speed::Low => {
-                            print!("低风,");
-                        }
-                        Speed::Middle => {
-                            print!("中风,");
-                        }
-                        Speed::High => {
-                            print!("高风,");
-                        }
-                        Speed::Fixed => {
-                            print!("固定风,");
-                        }
-                    }
-
-                    match Mode::as_u8(mode) {
-                        Mode::Cool => {
-                            print!("制冷,");
-                        }
-                        Mode::Humidify => {
-                            print!("抽湿,");
-                        }
-                        Mode::Heat => {
-                            print!("制热,");
-                        }
-                        Mode::Auto => {
-                            print!("自动,");
-                        }
-                    }
-                    match R05D_Temp::as_u8(temp) {
-                        R05D_Temp::T16 => {
-                            print!("温度：16°C");
-                        }
-                        R05D_Temp::T17 => {
-                            print!("温度：17°C");
-                        }
-                        R05D_Temp::T18 => {
-                            print!("温度：18°C");
-                        }
-                        R05D_Temp::T19 => {
-                            print!("温度：19°C");
-                        }
-                        R05D_Temp::T20 => {
-                            print!("温度：20°C");
-                        }
-                        R05D_Temp::T21 => {
-                            print!("温度：21°C");
-                        }
-                        R05D_Temp::T22 => {
-                            print!("温度：22°C");
-                        }
-                        R05D_Temp::T23 => {
-                            print!("温度：23°C");
-                        }
-                        R05D_Temp::T24 => {
-                            print!("温度：24°C");
-                        }
-                        R05D_Temp::T25 => {
-                            print!("温度：25°C");
-                        }
-                        R05D_Temp::T26 => {
-                            print!("温度：26°C");
-                        }
-                        R05D_Temp::T27 => {
-                            print!("温度：27°C");
-                        }
-                        R05D_Temp::T28 => {
-                            print!("温度：28°C");
-                        }
-                        R05D_Temp::T29 => {
-                            print!("温度：29°C");
-                        }
-                        R05D_Temp::T30 => {
-                            print!("温度：30°C");
-                        }
-                        R05D_Temp::T31 => {
-                            print!("温度：31°C");
-                        }
-                    }
-                }
-
-                println!(); // 打印完成后换行
+                R05dDecode::decode(byte_data);
             }
             FreeRtos::delay_ms(500);
         });
 
     let _ = std::thread::spawn(move || loop {
-        info!("Starting RMT send");
         FreeRtos::delay_ms(1000);
         // 关机
-        send_wave_code(&mut tx, 0xB2, 0xBF, 0xE0).unwrap();
+        send_wave_code(&mut tx, 0xB2, 0x7B, 0xE0).unwrap();
     });
     loop {
         FreeRtos::delay_ms(3000);
@@ -324,19 +221,17 @@ enum Speed {
     Middle = 2,
     // 高风
     High = 1,
-    // 固定风
-    Fixed = 0,
 }
 
 impl Speed {
     fn as_u8(data: u8) -> Speed {
+        println!("风速: {}", data);
         match data {
             5 => Speed::Auto,
             4 => Speed::Low,
             2 => Speed::Middle,
             1 => Speed::High,
-            0 => Speed::Fixed,
-            _ => panic!(),
+            _ => Speed::Auto,
         }
     }
 }
@@ -355,56 +250,154 @@ enum Mode {
 
 impl Mode {
     fn as_u8(data: u8) -> Mode {
+        println!("模式: {}", data);
         match data {
             2 => Mode::Auto,
             0 => Mode::Cool,
             1 => Mode::Humidify,
             3 => Mode::Heat,
-            _ => panic!(),
+            _ => Mode::Auto,
         }
     }
 }
 
 // 温度
-enum R05D_Temp {
-    T16 = 15, //C(4,7)=1111,16℃
-    T17 = 0,  //C(4,7)=0000,17℃
-    T18 = 1,  //C(4,7)=0001,18℃
-    T19 = 3,  //C(4,7)=0011,19℃
-    T20 = 2,  //C(4,7)=0010,20℃
-    T21 = 6,  //C(4,7)=0110,21℃
-    T22 = 7,  //C(4,7)=0111,22℃
-    T23 = 5,  //C(4,7)=0101,23℃
-    T24 = 4,  //C(4,7)=0100,24℃
-    T25 = 12, //C(4,7)=1100,25℃
-    T26 = 13, //C(4,7)=1101,26℃
-    T27 = 9,  //C(4,7)=1001,27℃
-    T28 = 8,  //C(4,7)=1000,28℃
-    T29 = 10, //C(4,7)=1010,29℃
-    T30 = 11, //C(4,7)=1011,30℃ B24DBF4000FFB24DBF4000FFD5660010004B自动
-    T31 = 14, //C(4,7)=1110,无定义，送风模式下使用 B24DBF4000FFB24DBF4000FFD5660000003B自动
+enum R05dTemp {
+    T17 = 0,
+    T18 = 1,
+    T19 = 3,
+    T20 = 2,
+    T21 = 6,
+    T22 = 7,
+    T23 = 5,
+    T24 = 4,
+    T25 = 12,
+    T26 = 13,
+    T27 = 9,
+    T28 = 8,
+    T29 = 10,
+    T30 = 11,
 }
 
-impl R05D_Temp {
-    fn as_u8(data: u8) -> R05D_Temp {
+impl R05dTemp {
+    fn as_u8(data: u8) -> R05dTemp {
+        println!("温度: {}", data);
         match data {
-            0 => R05D_Temp::T17,
-            1 => R05D_Temp::T18,
-            3 => R05D_Temp::T19,
-            2 => R05D_Temp::T20,
-            6 => R05D_Temp::T21,
-            7 => R05D_Temp::T22,
-            5 => R05D_Temp::T23,
-            4 => R05D_Temp::T24,
-            12 => R05D_Temp::T25,
-            13 => R05D_Temp::T26,
-            9 => R05D_Temp::T27,
-            8 => R05D_Temp::T28,
-            10 => R05D_Temp::T29,
-            11 => R05D_Temp::T30,
-            15 => R05D_Temp::T16,
-            14 => R05D_Temp::T31,
-            _ => panic!(),
+            0 => R05dTemp::T17,
+            1 => R05dTemp::T18,
+            3 => R05dTemp::T19,
+            2 => R05dTemp::T20,
+            6 => R05dTemp::T21,
+            7 => R05dTemp::T22,
+            5 => R05dTemp::T23,
+            4 => R05dTemp::T24,
+            12 => R05dTemp::T25,
+            13 => R05dTemp::T26,
+            9 => R05dTemp::T27,
+            8 => R05dTemp::T28,
+            10 => R05dTemp::T29,
+            11 => R05dTemp::T30,
+            _ => R05dTemp::T30,
+        }
+    }
+}
+
+// 解码
+struct R05dDecode;
+impl R05dDecode {
+    fn decode(byte_data: Vec<u8>) {
+        // 编码格式为 L A A' B B' C C' S L A A' B B' C C'
+        println!(
+            "A: {:02X}, A`: {:02X}, B: {:02X} B`: {:02X}, C: {:02X}, C`: {:02X}",
+            byte_data[0], byte_data[1], byte_data[2], byte_data[3], byte_data[4], byte_data[5],
+        );
+        if byte_data[2] == 0x7B && byte_data[4] == 0xE0 {
+            println!("关机")
+        } else if byte_data[2] == 0xF5 && byte_data[4] == 0x04 {
+            println!("自动扫风");
+        } else if byte_data[2] == 0xF5 && byte_data[4] == 0x05 {
+            println!("手动扫风");
+        }else {
+            //风速
+            let wind = (byte_data[2] >> 5) & 0x7;
+            //模式
+            let mode = (byte_data[4] >> 2) & 0x3;
+            // 温度
+            let temp = (byte_data[4] >> 4) & 0xf;
+            // 风速
+            match Speed::as_u8(wind) {
+                Speed::Auto => {
+                    println!("自动,");
+                }
+                Speed::Low => {
+                    println!("低风,");
+                }
+                Speed::Middle => {
+                    println!("中风,");
+                }
+                Speed::High => {
+                    println!("高风,");
+                }
+            }
+
+            match Mode::as_u8(mode) {
+                Mode::Cool => {
+                    println!("制冷,");
+                }
+                Mode::Humidify => {
+                    println!("抽湿,");
+                }
+                Mode::Heat => {
+                    println!("制热,");
+                }
+                Mode::Auto => {
+                    println!("自动,");
+                }
+            }
+            match R05dTemp::as_u8(temp) {
+                R05dTemp::T17 => {
+                    println!("温度：17°C");
+                }
+                R05dTemp::T18 => {
+                    println!("温度：18°C");
+                }
+                R05dTemp::T19 => {
+                    println!("温度：19°C");
+                }
+                R05dTemp::T20 => {
+                    println!("温度：20°C");
+                }
+                R05dTemp::T21 => {
+                    println!("温度：21°C");
+                }
+                R05dTemp::T22 => {
+                    println!("温度：22°C");
+                }
+                R05dTemp::T23 => {
+                    println!("温度：23°C");
+                }
+                R05dTemp::T24 => {
+                    println!("温度：24°C");
+                }
+                R05dTemp::T25 => {
+                    println!("温度：25°C");
+                }
+                R05dTemp::T26 => {
+                    println!("温度：26°C");
+                }
+                R05dTemp::T27 => {
+                    println!("温度：27°C");
+                }
+                R05dTemp::T28 => {
+                    println!("温度：28°C");
+                }
+                R05dTemp::T29 => {
+                    println!("温度：29°C");
+                }
+                R05dTemp::T30 => {
+                    println!("温度：30°C");
+                }
+            }
         }
     }
 }
