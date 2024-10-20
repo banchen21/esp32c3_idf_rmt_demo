@@ -403,6 +403,7 @@ impl R05D_Temp {
             10 => R05D_Temp::T29,
             11 => R05D_Temp::T30,
             15 => R05D_Temp::T16,
+            14 => R05D_Temp::T31,
             _ => panic!(),
         }
     }
