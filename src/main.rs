@@ -40,14 +40,11 @@ fn main() -> Result<()> {
                 let pulses: &[(Pulse, Pulse)] = &pulses[..length];
                 let mut byte_data: Vec<u8> = Vec::new();
                 for (_lenght, (p1, p2)) in pulses.iter().enumerate() {
-                    // println!("lenght: {lenght}| p1: {p1:?}| p2: {p2:?}");
+                    // println!(
+                    //     "{:?},{:?},{:?},{:?}",
+                    //     p1.ticks, p1.pin_state, p2.ticks, p2.pin_state
+                    // );
                     if p1.pin_state == PinState::Low
-                        && p2.pin_state == PinState::High
-                        && in_range(p1.ticks.ticks(), 4200, 4600)
-                        && in_range(p2.ticks.ticks(), 4200, 4600)
-                    {
-                        // println!("L");
-                    } else if p1.pin_state == PinState::Low
                         && p2.pin_state == PinState::High
                         && in_range(p2.ticks.ticks(), 350, 700)
                     {
@@ -57,26 +54,26 @@ fn main() -> Result<()> {
                         && in_range(p2.ticks.ticks(), 350, 1850)
                     {
                         byte_data.push(0x1);
-                    } else if p1.pin_state == PinState::Low
-                        && p2.pin_state == PinState::High
-                        && in_range(p2.ticks.ticks(), 420, 5400)
-                    {
-                        // println!("S");
                     }
                 }
                 let byte_data: Vec<u8> = bits_to_bytes(&byte_data);
                 if byte_data.len() == 0 {
                     break;
                 }
+                for bytedat in &byte_data {
+                    print!("{:02X} ", bytedat);
+                }
+                println!();
                 R05dDecode::decode(byte_data);
+                println!("length: {}", length);
             }
             FreeRtos::delay_ms(500);
         });
 
     let _ = std::thread::spawn(move || loop {
-        FreeRtos::delay_ms(1000);
+        FreeRtos::delay_ms(3000);
         // 关机
-        send_wave_code(&mut tx, 0xB2, 0x7B, 0xE0).unwrap();
+        send_wave_code(&mut tx, 0xB2, 0xBF, 0x00).unwrap();
     });
     loop {
         FreeRtos::delay_ms(3000);
@@ -104,38 +101,6 @@ fn in_range(num: u16, min: u16, max: u16) -> bool {
     }
     false
 }
-
-// // h200_l200
-// fn send_h200_l200(tx: &mut TxRmtDriver) -> Result<()> {
-//     let p1 = Pulse::new(PinState::High, PulseTicks::new(2000).unwrap());
-//     let p2 = Pulse::new(PinState::Low, PulseTicks::new(2000).unwrap());
-//     let mut s = FixedLengthSignal::<1>::new();
-//     s.set(0, &(p1, p2)).unwrap();
-//     tx.start(s).unwrap();
-//     Ok(())
-// }
-
-// // h200_l400
-// fn send_h200_l400(tx: &mut TxRmtDriver) -> Result<()> {
-//     let p1 = Pulse::new(PinState::High, PulseTicks::new(6000).unwrap());
-//     let p2 = Pulse::new(PinState::Low, PulseTicks::new(4000).unwrap());
-//     let mut s = FixedLengthSignal::<1>::new();
-//     s.set(0, &(p1, p2)).unwrap();
-//     tx.start(s).unwrap();
-//     Ok(())
-// }
-
-// // h400_l200
-// fn send_h400_l200(tx: &mut TxRmtDriver) -> Result<()> {
-//     let p1 = Pulse::new(PinState::High, PulseTicks::new(4000).unwrap());
-//     let p2 = Pulse::new(PinState::Low, PulseTicks::new(2000).unwrap());
-//     let mut s = FixedLengthSignal::<1>::new();
-//     s.set(0, &(p1, p2)).unwrap();
-//     tx.start(s).unwrap();
-//     Ok(())
-// }
-// 226440
-
 // 引导码
 fn send_header_code(tx: &mut TxRmtDriver) -> Result<()> {
     let p1 = Pulse::new(PinState::High, PulseTicks::new(4400).unwrap());
@@ -148,7 +113,7 @@ fn send_header_code(tx: &mut TxRmtDriver) -> Result<()> {
 
 // 数据码0
 fn send_0_code(tx: &mut TxRmtDriver) -> Result<()> {
-    let p1 = Pulse::new(PinState::High, PulseTicks::new(540).unwrap());
+    let p1 = Pulse::new(PinState::High, PulseTicks::new(520).unwrap());
     let p2 = Pulse::new(PinState::Low, PulseTicks::new(540).unwrap());
     let mut s = FixedLengthSignal::<1>::new();
     s.set(0, &(p1, p2)).unwrap();
@@ -158,8 +123,8 @@ fn send_0_code(tx: &mut TxRmtDriver) -> Result<()> {
 
 // 数据码1
 fn send_1_code(tx: &mut TxRmtDriver) -> Result<()> {
-    let p1 = Pulse::new(PinState::High, PulseTicks::new(540).unwrap());
-    let p2 = Pulse::new(PinState::Low, PulseTicks::new(1620).unwrap());
+    let p1 = Pulse::new(PinState::High, PulseTicks::new(520).unwrap());
+    let p2 = Pulse::new(PinState::Low, PulseTicks::new(1600).unwrap());
     let mut s = FixedLengthSignal::<1>::new();
     s.set(0, &(p1, p2)).unwrap();
     tx.start(s).unwrap();
@@ -168,7 +133,7 @@ fn send_1_code(tx: &mut TxRmtDriver) -> Result<()> {
 
 // 分隔码
 fn send_stop_code(tx: &mut TxRmtDriver) -> Result<()> {
-    let p1 = Pulse::new(PinState::High, PulseTicks::new(540).unwrap());
+    let p1 = Pulse::new(PinState::High, PulseTicks::new(520).unwrap());
     let p2 = Pulse::new(PinState::Low, PulseTicks::new(5220).unwrap());
     let mut s = FixedLengthSignal::<1>::new();
     s.set(0, &(p1, p2)).unwrap();
@@ -208,6 +173,19 @@ fn send_wave_code(tx: &mut TxRmtDriver, a: u8, b: u8, c: u8) -> Result<()> {
     send_byte_code(tx, !b)?;
     send_byte_code(tx, c)?;
     send_byte_code(tx, !c)?;
+    send_stop_code(tx)?;
+
+    //  FF D5 66 00 10 00 4B
+    // 11111111110101010110011000000000000100000000000001001000
+    send_header_code(tx)?;
+    send_byte_code(tx, 0xD5)?;
+    send_byte_code(tx, 0x66)?;
+    send_byte_code(tx, 0x00)?;
+    send_byte_code(tx, 0x10)?;
+    send_byte_code(tx, 0x00)?;
+    send_byte_code(tx, 0x4B)?;
+    send_stop_code(tx)?;
+
     Ok(())
 }
 
@@ -317,7 +295,7 @@ impl R05dDecode {
             println!("自动扫风");
         } else if byte_data[2] == 0xF5 && byte_data[4] == 0x05 {
             println!("手动扫风");
-        }else {
+        } else {
             //风速
             let wind = (byte_data[2] >> 5) & 0x7;
             //模式
